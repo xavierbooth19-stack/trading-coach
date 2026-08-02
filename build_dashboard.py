@@ -135,8 +135,8 @@ def _kpis(t, net, findings, per_trade, aggregate):
 
     win = pd.Series((profits > 0).astype(float))
     rolling_wr = win.rolling(20, min_periods=5).mean().dropna().tolist()
-    r_vals = np.array([metrics.r_dollars(p, q, findings["rules"]["stop_pct"])
-                       for p, q in zip(t["Entry price"], t["Qty"])])
+    r_vals = np.array([metrics.r_dollars_for(p, q, findings["rules"], inst)
+                       for p, q, inst in zip(t["Entry price"], t["Qty"], t["Instrument"])])
     r_mult = pd.Series(np.where(r_vals > 0, profits / np.where(r_vals > 0, r_vals, 1), 0.0))
     rolling_r = r_mult.rolling(20, min_periods=5).mean().dropna().tolist()
 
@@ -239,7 +239,7 @@ def _trade_cards(t, net, styles, per_trade, findings, rules):
     cards = []
     for i, row in enumerate(t.to_dict("records")):
         n = int(row["Trade number"])
-        r_dollar = metrics.r_dollars(row["Entry price"], row["Qty"], rules["stop_pct"])
+        r_dollar = metrics.r_dollars_for(row["Entry price"], row["Qty"], rules, row["Instrument"])
         rep = replay_by_n.get(n, {})
         manual = str(row["Exit name"]).strip().lower() == "manual"
         flags = []
@@ -328,16 +328,18 @@ def _leaks(t, net, findings, cards):
         leaks.append({"name": "Revenge sizing (excess-size P&L)", "dollars": excess,
                       "detail": f"{len(over)} oversized trades right after a loss"})
 
-    by_code = {"session": [], "direction": [], "size": []}
+    by_code = {"session": [], "direction": [], "size": [], "loss_limit": []}
     for v in findings["adherence"]["violations"]:
         idx = int(np.flatnonzero(t["Trade number"].to_numpy() == v["trade_number"])[0])
         for text in v["violations"]:
             code = ("session" if "session window" in text
+                    else "loss_limit" if "daily loss limit" in text
                     else "direction" if "plan" in text else "size")
             by_code[code].append(net[idx])
     labels = {"session": "Entries outside the session window",
               "direction": "Trades against your declared direction",
-              "size": "Positions above your max size"}
+              "size": "Positions above your max size",
+              "loss_limit": "Entries after hitting the daily loss limit"}
     for code, pnls in by_code.items():
         if pnls:
             leaks.append({"name": labels[code], "dollars": float(np.sum(pnls)),

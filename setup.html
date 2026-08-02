@@ -130,6 +130,10 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
     <div><label>SESSION END (ET)</label><input id="f-end" value="16:00"></div>
     <div><label>MAX SIZE</label><input id="f-size" type="number" value="500"></div>
     <div><label>SLIPPAGE (BPS)</label><input id="f-slip" type="number" value="2"></div>
+    <div><label>STOP/TARGET UNIT</label>
+      <select id="f-unit"><option value="percent">percent (stocks)</option>
+      <option value="points">points (futures)</option></select></div>
+    <div><label>DAILY LOSS LIMIT $ (empty = off)</label><input id="f-losslimit" type="number" step="50" value=""></div>
   </div>
   <div id="readout">…</div>
   <div class="librow">
@@ -196,13 +200,15 @@ document.querySelectorAll(".tabbtns button").forEach(b => b.onclick = () => {
 
 const FIELDS = {direction:"f-direction", stop_pct:"f-stop", target_pct:"f-target",
   session_start:"f-start", session_end:"f-end", max_size:"f-size",
-  exit_style:"f-exit", slippage_bps:"f-slip"};
+  exit_style:"f-exit", slippage_bps:"f-slip", price_unit:"f-unit",
+  daily_loss_limit:"f-losslimit"};
 function readForm(){
-  const t = el("f-target").value.trim();
+  const t = el("f-target").value.trim(), dl = el("f-losslimit").value.trim();
   return {direction: el("f-direction").value, stop_pct: +el("f-stop").value,
     target_pct: t === "" ? null : +t, session_start: el("f-start").value,
     session_end: el("f-end").value, max_size: +el("f-size").value,
-    exit_style: el("f-exit").value, slippage_bps: +el("f-slip").value};
+    exit_style: el("f-exit").value, slippage_bps: +el("f-slip").value,
+    price_unit: el("f-unit").value, daily_loss_limit: dl === "" ? null : +dl};
 }
 function fillForm(rules){
   for(const [k, id] of Object.entries(FIELDS))

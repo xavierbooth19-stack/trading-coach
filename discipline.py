@@ -13,6 +13,7 @@ import datetime as dt
 import numpy as np
 import pandas as pd
 
+import instruments
 import metrics
 import rules as rules_mod
 
@@ -48,10 +49,11 @@ def replay(trades: pd.DataFrame, bars: pd.DataFrame, rules=None):
 
     sessions = _index_bars(bars)
     session_end = dt.datetime.strptime(rules["session_end"], "%H:%M").time()
+    loss_limited = metrics.daily_loss_limit_violations(trades, rules["daily_loss_limit"])
 
     rows = []
     for trade in trades.sort_values("Entry time", kind="stable").to_dict("records"):
-        rows.append(_replay_one(trade, sessions, rules, session_end))
+        rows.append(_replay_one(trade, sessions, rules, session_end, loss_limited))
     per_trade = pd.DataFrame(rows)
 
     replayed = per_trade[~per_trade["rule_exit_kind"].isin(["not_taken", "no_data"])]
@@ -75,13 +77,14 @@ def replay(trades: pd.DataFrame, bars: pd.DataFrame, rules=None):
 # -------------------------------------------------------------- one trade
 
 
-def _replay_one(trade, sessions, rules, session_end):
+def _replay_one(trade, sessions, rules, session_end, loss_limited=frozenset()):
     entry_time = pd.Timestamp(trade["Entry time"])
     qty = int(trade["Qty"])
     side = 1 if str(trade["Market pos."]).strip().lower() == "long" else -1
     entry = float(trade["Entry price"])
     commission = float(trade["Commission"])
     actual_net = float(trade["Profit"]) - commission
+    pv = instruments.point_value(trade["Instrument"])
 
     base = {
         "trade_number": int(trade["Trade number"]),
@@ -93,10 +96,13 @@ def _replay_one(trade, sessions, rules, session_end):
         "actual_pnl": actual_net,
     }
 
-    # Rule 8 — plan eligibility first.
+    # Rule 8 — plan eligibility first (incl. the daily loss limit).
     violations = metrics.adherence_violations(
         trade["Market pos."], entry_time, qty, rules
     )
+    if int(trade["Trade number"]) in loss_limited:
+        violations = violations + [{"code": "loss_limit",
+                                    "text": "entered after hitting your daily loss limit"}]
     if violations:
         return {**base, "rule_exit_price": None, "rule_exit_time": None,
                 "rule_exit_kind": "not_taken",
@@ -126,18 +132,18 @@ def _replay_one(trade, sessions, rules, session_end):
         i = last[-1]
         price = _slip(float(close[i]), side, rules["slippage_bps"])
         return _finish(base, price, when[i], "session_close", entry, side, qty,
-                       commission, actual_net)
+                       commission, actual_net, pv)
 
     idx = np.flatnonzero(after)
     price, exit_when, kind = _simulate(
         entry, side, rules,
         opn[idx], high[idx], low[idx], close[idx], when[idx],
     )
-    return _finish(base, price, exit_when, kind, entry, side, qty, commission, actual_net)
+    return _finish(base, price, exit_when, kind, entry, side, qty, commission, actual_net, pv)
 
 
-def _finish(base, price, exit_when, kind, entry, side, qty, commission, actual_net):
-    gross = (price - entry) * side * qty
+def _finish(base, price, exit_when, kind, entry, side, qty, commission, actual_net, pv=1.0):
+    gross = (price - entry) * side * qty * pv
     rule_pnl = gross - commission
     return {**base, "rule_exit_price": float(price),
             "rule_exit_time": pd.Timestamp(exit_when),
@@ -158,7 +164,7 @@ def _simulate(entry, side, rules, opn, high, low, close, when):
     """
     style = rules["exit_style"]
     slip_bps = rules["slippage_bps"]
-    stop_dist = rules["stop_pct"] / 100.0 * entry
+    stop_dist = metrics.stop_distance(entry, rules)
     n = len(close)
 
     # Rule 7 — time style: pure hold to session end.
@@ -167,8 +173,9 @@ def _simulate(entry, side, rules, opn, high, low, close, when):
 
     stop = entry - side * stop_dist
     target = None
-    if style in ("fixed", "breakeven") and rules["target_pct"] is not None:
-        target = entry + side * rules["target_pct"] / 100.0 * entry
+    target_dist = metrics.target_distance(entry, rules)
+    if style in ("fixed", "breakeven") and target_dist is not None:
+        target = entry + side * target_dist
     breakeven_armed = False
 
     for i in range(n):

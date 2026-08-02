@@ -33,7 +33,11 @@ DEFAULT_RULES = {
     "max_size": 500,
     "exit_style": "fixed",    # fixed | breakeven | trailing | time
     "slippage_bps": 2,
+    "price_unit": "percent",  # percent (equities) | points (futures)
+    "daily_loss_limit": None, # $ — stop entering once the day is down this much (null = off)
 }
+
+PRICE_UNITS = ("percent", "points")
 
 RULE_FIELDS = list(DEFAULT_RULES)
 
@@ -58,9 +62,18 @@ def normalize_rules(raw):
     else:
         errors.append(f"direction must be one of {', '.join(DIRECTIONS)} (got '{direction}')")
 
+    unit = str(raw.get("price_unit", rules["price_unit"])).strip().lower()
+    if unit in PRICE_UNITS:
+        rules["price_unit"] = unit
+    else:
+        errors.append(f"price_unit must be one of {', '.join(PRICE_UNITS)} (got '{unit}')")
+        unit = "percent"
+    stop_cap = 50 if unit == "percent" else 10000       # points can be large (e.g. NQ)
+    unit_word = "percent of entry price" if unit == "percent" else "price points"
+
     stop = _to_float(raw.get("stop_pct", rules["stop_pct"]))
-    if stop is None or not 0 < stop <= 50:
-        errors.append("stop_pct must be a number between 0 and 50 (percent of entry price)")
+    if stop is None or not 0 < stop <= stop_cap:
+        errors.append(f"stop_pct must be a number between 0 and {stop_cap} ({unit_word})")
     else:
         rules["stop_pct"] = stop
 
@@ -69,10 +82,20 @@ def normalize_rules(raw):
         rules["target_pct"] = None
     else:
         target = _to_float(target_raw)
-        if target is None or not 0 < target <= 100:
-            errors.append("target_pct must be null (no fixed target) or a number between 0 and 100")
+        if target is None or not 0 < target <= stop_cap * 2:
+            errors.append(f"target_pct must be null (no fixed target) or a number between 0 and {stop_cap * 2}")
         else:
             rules["target_pct"] = target
+
+    limit_raw = raw.get("daily_loss_limit", rules["daily_loss_limit"])
+    if limit_raw is None or (isinstance(limit_raw, str) and limit_raw.strip().lower() in ("", "null", "none")):
+        rules["daily_loss_limit"] = None
+    else:
+        limit = _to_float(limit_raw)
+        if limit is None or limit <= 0:
+            errors.append("daily_loss_limit must be null (off) or a positive dollar amount")
+        else:
+            rules["daily_loss_limit"] = limit
 
     start = _to_time(raw.get("session_start", rules["session_start"]))
     end = _to_time(raw.get("session_end", rules["session_end"]))
@@ -319,6 +342,7 @@ def readout(rules):
                 "text": "Fix the highlighted fields to see reward-to-risk."}
 
     stop, target = clean["stop_pct"], clean["target_pct"]
+    unit = "%" if clean["price_unit"] == "percent" else " points"
     if target is None:
         style = clean["exit_style"]
         how = {
@@ -330,7 +354,7 @@ def readout(rules):
         return {
             "reward_to_risk": None,
             "breakeven_win_rate": None,
-            "text": (f"No fixed target — {how}. You risk {stop:.2f}% per trade; "
+            "text": (f"No fixed target — {how}. You risk {stop:g}{unit} per trade; "
                      "reward depends on how far each winner runs, so there is "
                      "no fixed breakeven win rate."),
         }
@@ -340,7 +364,7 @@ def readout(rules):
     return {
         "reward_to_risk": round(r, 2),
         "breakeven_win_rate": round(breakeven, 4),
-        "text": (f"Reward-to-risk: {r:.1f}R — you risk {stop:.2f}% to make {target:.2f}%. "
+        "text": (f"Reward-to-risk: {r:.1f}R — you risk {stop:g}{unit} to make {target:g}{unit}. "
                  f"Breakeven win rate: {breakeven:.0%} — win more often than that "
                  "(before costs) and this profile makes money."),
     }

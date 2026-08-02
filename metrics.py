@@ -13,6 +13,8 @@ import math
 import numpy as np
 import pandas as pd
 
+import instruments
+
 
 # ------------------------------------------------------------ core stats
 
@@ -60,8 +62,40 @@ def expectancy(profits):
 
 
 def r_dollars(entry_price, qty, stop_pct):
-    """1R in dollars: stop_pct% of entry price, times quantity."""
+    """1R in dollars: stop_pct% of entry price, times quantity (equities)."""
     return float(stop_pct) / 100.0 * float(entry_price) * float(qty)
+
+
+def stop_distance(entry_price, rules):
+    """The stop distance in PRICE units under the rules.
+
+    price_unit 'percent': stop_pct% of entry. price_unit 'points': the
+    stop value is already in price points (futures idiom).
+    """
+    v = float(rules["stop_pct"])
+    if rules.get("price_unit") == "points":
+        return v
+    return v / 100.0 * float(entry_price)
+
+
+def target_distance(entry_price, rules):
+    """The target distance in price units, or None when target is null."""
+    if rules.get("target_pct") is None:
+        return None
+    v = float(rules["target_pct"])
+    if rules.get("price_unit") == "points":
+        return v
+    return v / 100.0 * float(entry_price)
+
+
+def r_dollars_for(entry_price, qty, rules, instrument):
+    """1R in real dollars: stop distance x qty x the contract point value.
+
+    For equities the point value is 1.0, so this equals the classic
+    stop_pct% x entry x qty. For futures (ES $50/pt, MES $5/pt, ...) it
+    makes the R math and rule P&L exact.
+    """
+    return stop_distance(entry_price, rules) * float(qty) * instruments.point_value(instrument)
 
 
 def expectancy_in_r(profits, r_values):
@@ -215,6 +249,33 @@ def adherence_violations(position, entry_time, qty, rules):
         })
 
     return violations
+
+
+def daily_loss_limit_violations(trades, limit):
+    """Trade numbers entered AFTER the day's realized net P&L hit -limit.
+
+    Prop-firm rule (Topstep-style daily loss limit): once the day's
+    closed trades are down `limit` dollars or more, any further entry
+    that day is outside the plan. Returns a set of trade numbers; empty
+    when limit is None. Shared by the auditor and the replay so the two
+    can never disagree.
+    """
+    if limit is None or trades is None or len(trades) == 0:
+        return set()
+    limit = abs(float(limit))
+    t = trades.sort_values("Entry time", kind="stable")
+    entries = t["Entry time"].to_numpy()
+    exits = t["Exit time"].to_numpy()
+    days = t["Entry time"].dt.normalize().to_numpy()
+    net = (t["Profit"] - t["Commission"]).to_numpy(float)
+    numbers = t["Trade number"].to_numpy()
+
+    violators = set()
+    for i in range(len(t)):
+        same_day_closed = (days == days[i]) & (exits <= entries[i])
+        if net[same_day_closed].sum() <= -limit:
+            violators.add(int(numbers[i]))
+    return violators
 
 
 def _parse_hhmm(text):

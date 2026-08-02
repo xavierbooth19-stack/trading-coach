@@ -54,10 +54,12 @@ The object must have exactly these keys:
 - "max_size": integer >= 1 — the largest position size in shares/contracts
 - "exit_style": "fixed" | "breakeven" | "trailing" | "time"
 - "slippage_bps": number >= 0 — assumed slippage in basis points (use 2 if the trader doesn't say)
+- "price_unit": "percent" | "points" — "points" when the trader thinks in futures points/ticks (ES, NQ, MES...); then stop_pct/target_pct are point distances, not percents
+- "daily_loss_limit": positive dollar amount, or null — set it when the trader mentions a daily loss limit / max daily drawdown (common for prop-firm evaluations like Topstep)
 
 Rules for filling values:
 - Infer sensible values from the description plus the stated trading family; when the trader is silent on a field, choose a typical value for that family.
-- Points/ticks/dollars must be converted to percent of entry price when the trader gives you enough to do so; otherwise pick a family-typical percent.
+- Futures traders describing stops in points or ticks get price_unit "points" with the distances in points (4 ticks on ES = 1 point). Percent-thinking equity traders get "percent"; convert dollars to percent when the entry price makes that possible.
 - Times like "the first hour" mean 09:30-10:30 Eastern. "The open" starts 09:30. "The close" ends 16:00.
 - If the trader only goes long, "long_only"; only shorts, "short_only"; otherwise "both".
 - "trailing" when they ride winners with a moving stop; "breakeven" when they move the stop to entry; "time" when exits are on the clock; else "fixed"."""

@@ -28,8 +28,8 @@ def audit(trades: pd.DataFrame, rules=None) -> dict:
     profits = t["Profit"].to_numpy(float)
     qty = t["Qty"].to_numpy(float)
     entry_px = t["Entry price"].to_numpy(float)
-    r_values = np.array([metrics.r_dollars(p, q, rules["stop_pct"])
-                         for p, q in zip(entry_px, qty)])
+    r_values = np.array([metrics.r_dollars_for(p, q, rules, inst)
+                         for p, q, inst in zip(entry_px, qty, t["Instrument"])])
 
     findings = {
         "meta": _meta(t),
@@ -138,11 +138,15 @@ def _adherence(t, rules):
     is not a violation by itself.
     """
     violations = []
-    counts = {"direction": 0, "session": 0, "size": 0}
+    counts = {"direction": 0, "session": 0, "size": 0, "loss_limit": 0}
+    loss_limited = metrics.daily_loss_limit_violations(t, rules["daily_loss_limit"])
     for i in range(len(t)):
         found = metrics.adherence_violations(
             t["Market pos."].iloc[i], t["Entry time"].iloc[i], t["Qty"].iloc[i], rules
         )
+        if int(t["Trade number"].iloc[i]) in loss_limited:
+            found = found + [{"code": "loss_limit",
+                              "text": "entered after hitting your daily loss limit"}]
         if found:
             violations.append({
                 "trade_number": int(t["Trade number"].iloc[i]),
