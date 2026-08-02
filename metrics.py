@@ -89,6 +89,56 @@ def core_stats(profits, r_values=None):
     }
 
 
+# ----------------------------------------------------------- quant stats
+
+
+def std_error(profits):
+    """Standard error of the per-trade P&L mean."""
+    profits = _arr(profits)
+    if profits.size < 2:
+        return None
+    return float(profits.std(ddof=1) / math.sqrt(profits.size))
+
+
+def sharpe_per_trade(profits):
+    """Mean per-trade P&L over its standard deviation (per-trade Sharpe)."""
+    profits = _arr(profits)
+    if profits.size < 2:
+        return None
+    sd = profits.std(ddof=1)
+    return None if sd == 0 else float(profits.mean() / sd)
+
+
+def sqn(profits):
+    """System Quality Number: sqrt(N) x per-trade Sharpe (Van Tharp)."""
+    s = sharpe_per_trade(profits)
+    profits = _arr(profits)
+    return None if s is None else float(s * math.sqrt(profits.size))
+
+
+def kelly_fraction(profits):
+    """Kelly: p - (1-p)/payoff — the bankroll fraction that maximizes growth."""
+    p, payoff = win_rate(profits), payoff_ratio(profits)
+    if p is None or payoff is None or payoff == 0:
+        return None
+    return float(p - (1 - p) / payoff)
+
+
+def equity_curve(profits):
+    """Cumulative P&L, trade by trade."""
+    return np.cumsum(_arr(profits))
+
+
+def max_drawdown(profits):
+    """Deepest peak-to-trough fall of the cumulative equity curve, in $ (<= 0)."""
+    profits = _arr(profits)
+    if profits.size == 0:
+        return 0.0
+    equity = np.cumsum(profits)
+    peak = np.maximum.accumulate(np.maximum(equity, 0))
+    return float(min(0.0, (equity - peak).min()))
+
+
 # ------------------------------------------------------------------ luck
 
 

@@ -3,7 +3,8 @@
 A trade auditor built in five layers. So far: **Layer 1 (the data)** — real
 intraday price bars plus the trade log; **Layer 2 (the strategy)** —
 structured rules the engine applies mechanically; **Layer 3 (the engine)** —
-the deterministic behavioral audit and rule replay.
+the deterministic behavioral audit and rule replay; **Layer 4 (the
+dashboard)** — one dark terminal-style page fed by `dash_data.json`.
 
 ## Layer 1 modules
 
@@ -29,6 +30,13 @@ the deterministic behavioral audit and rule replay.
 | `auditor_engine.py` | `audit(trades, rules)` — the behavioral audit from the log alone, written into **one findings dict** the other layers reuse: core stats, luck (P&L without top 1/3/5 + concentration), revenge sizing (avg size after a same-day loss vs otherwise + every oversized trade), disposition (hold times winners vs losers, MFE capture, avg give-back/ETD), P&L by hour and by instrument, and per-trade plan adherence — with 'Manual' exits reported as a separate info line, never a violation. |
 | `discipline.py` | `replay(trades, bars, rules)` — what your rules would have done, trade by trade, on the real bars. Conservative by design; the exact 9 assumptions ship in the aggregate and get printed on the dashboard: no intra-entry-bar lookahead, stop-before-target in the same bar, gap-aware stops (fill at the open, then slippage), targets as exact resting limits never gap-improved, slippage only on stop/market/time exits, the real trade's commission, explicit exit_style modeling (fixed / breakeven at +1R / trailing by the stop distance / time), plan eligibility first ('outside your plan, not taken' = 0 to the benchmark), and session-end close-outs. Output: per-trade rule exit price/time/kind + P&L, and actual vs rule-managed vs signed difference. |
 
+## Layer 4 modules
+
+| File | What it does |
+| --- | --- |
+| `build_dashboard.py` | Runs the Layer-3 engine and computes `dash_data.json` — verdict, stepper state, six KPI tiles with sparkline series, quant stats (each with its one-line meaning + a plain-english 'Read:' sentence), per-trade cards (side, size, R multiple, observed style, your exit vs the rule exit, flags), per-day candle data with real-1m detection, style read (declared vs observed + family table + axis splits), equity/luck curves, ranked dollar leaks, P&L by hour, and the discipline cost with the nine replay assumptions. Then bakes that JSON into `dashboard.html` so the page opens straight from disk. `python build_dashboard.py` after `fetch_and_gen.py`. |
+| `dashboard_template.html` | The page itself: JetBrains Mono on near-black, cyan = deterministic, purple = AI, zero external JS. Top to bottom: verdict banner, 1-2-3 stepper, COACH'S READ panel (empty until the coach button; renders returned markdown, tagged AI COACHING), KPI row, quant grid; then the deep dive — trade replay (real candles + close line + soft fill, prev/next day, adaptive 1m/5m/15m toggle where 1m only lights up on days with real 1-minute data, entry ▲ / your exit ● / rule exit ◆ markers, click for the trade modal), the constellation (every trade as a bubble: x time, y P&L, radius size, amber ring = oversized; hover card, click jumps the replay), style panel, equity vs without-top-3, ranked leaks, P&L by hour, and discipline cost with the assumptions printed. |
+
 ## Quick start
 
 ```bash
@@ -46,6 +54,7 @@ This writes `bars.csv` and `trades.csv` and prints a verification summary.
 python tests/test_layer1.py
 python tests/test_layer2.py
 python tests/test_layer3.py
+python tests/test_layer4.py
 ```
 
 Layer 1: 34 offline checks against synthetic tapes shaped exactly like the
@@ -58,4 +67,5 @@ the draft → review → approve flow. Layer 3: 60 offline checks — metric
 identities on a hand-made ledger, every fill mechanic verified against
 hand-computed prices (gap fills, stop-before-target, breakeven arming,
 trailing stops, slippage to the tick), eligibility, and the full
-audit + replay pipeline on the synthetic tape.
+audit + replay pipeline on the synthetic tape. Layer 4: 69 offline checks
+on the dash_data contract and the rendered page.
