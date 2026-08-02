@@ -1,8 +1,9 @@
 # trading-coach
 
 A trade auditor built in five layers. So far: **Layer 1 (the data)** — real
-intraday price bars plus the trade log — and **Layer 2 (the strategy)** —
-structured rules the engine applies mechanically.
+intraday price bars plus the trade log; **Layer 2 (the strategy)** —
+structured rules the engine applies mechanically; **Layer 3 (the engine)** —
+the deterministic behavioral audit and rule replay.
 
 ## Layer 1 modules
 
@@ -20,6 +21,14 @@ structured rules the engine applies mechanically.
 | `strategy_ai.py` | The plain-english path (label it **AI**, purple — happens once per strategy). The user picks one of ~15 trading families and types how they trade; family + text go to the model with a system prompt demanding strict JSON matching the schema (no prose, no backticks). The reply is parsed defensively and every field lands in an editable review form. Nothing runs until the user clicks **approve** — approving locks and saves the rules and stores the free-text playbook (`playbook.json`) for the coach to use later. |
 | `ai_client.py` + `ai_config.py` | Provider client: key from the environment first (`AI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`), `ai_config.py` as fallback. Routed by prefix — `sk-ant-...` → Anthropic Messages API (default `claude-opus-5`, with server-side refusal fallback enabled), plain `sk-...` → OpenAI (default `gpt-4o-mini`). `AI_MODEL` overrides the model either way. 90s timeout, one clear error line per failure mode. **No key at all?** The AI path greys out with a short note; presets and manual entry still work, and everything deterministic downstream runs keyless. |
 
+## Layer 3 modules
+
+| File | What it does |
+| --- | --- |
+| `metrics.py` | The shared metrics library — every number the engine and the dashboard show comes from here, so they can never disagree. Win rate, avg win/loss, payoff, profit factor, expectancy in $ and in R (1R = stop_pct% × entry × qty), P&L without the top-N winners, top-decile concentration of gross winning P&L (bounded 0–100%), hold times, and the plan-adherence check (direction / session window / max size) shared by both engines. |
+| `auditor_engine.py` | `audit(trades, rules)` — the behavioral audit from the log alone, written into **one findings dict** the other layers reuse: core stats, luck (P&L without top 1/3/5 + concentration), revenge sizing (avg size after a same-day loss vs otherwise + every oversized trade), disposition (hold times winners vs losers, MFE capture, avg give-back/ETD), P&L by hour and by instrument, and per-trade plan adherence — with 'Manual' exits reported as a separate info line, never a violation. |
+| `discipline.py` | `replay(trades, bars, rules)` — what your rules would have done, trade by trade, on the real bars. Conservative by design; the exact 9 assumptions ship in the aggregate and get printed on the dashboard: no intra-entry-bar lookahead, stop-before-target in the same bar, gap-aware stops (fill at the open, then slippage), targets as exact resting limits never gap-improved, slippage only on stop/market/time exits, the real trade's commission, explicit exit_style modeling (fixed / breakeven at +1R / trailing by the stop distance / time), plan eligibility first ('outside your plan, not taken' = 0 to the benchmark), and session-end close-outs. Output: per-trade rule exit price/time/kind + P&L, and actual vs rule-managed vs signed difference. |
+
 ## Quick start
 
 ```bash
@@ -36,6 +45,7 @@ This writes `bars.csv` and `trades.csv` and prints a verification summary.
 ```bash
 python tests/test_layer1.py
 python tests/test_layer2.py
+python tests/test_layer3.py
 ```
 
 Layer 1: 34 offline checks against synthetic tapes shaped exactly like the
@@ -44,4 +54,8 @@ generator (count, cadence, profitability, leaks, bar-level verification)
 and the NinjaTrader loader round trip. Layer 2: 53 offline checks with the
 AI client stubbed — schema validation, persistence, the strategy library,
 all presets, the readout math, provider routing, keyless degradation, and
-the draft → review → approve flow.
+the draft → review → approve flow. Layer 3: 60 offline checks — metric
+identities on a hand-made ledger, every fill mechanic verified against
+hand-computed prices (gap fills, stop-before-target, breakeven arming,
+trailing stops, slippage to the tick), eligibility, and the full
+audit + replay pipeline on the synthetic tape.
