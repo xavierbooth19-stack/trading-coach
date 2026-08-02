@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 bars.csv
 trades.csv
+rules.json
+strategies.json
+playbook.json
