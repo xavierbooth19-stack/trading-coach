@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+bars.csv
+trades.csv
+rules.json
+strategies.json
+playbook.json
+dash_data.json
+dashboard.html
