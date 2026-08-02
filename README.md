@@ -1,10 +1,15 @@
 # trading-coach
 
-A trade auditor built in five layers. So far: **Layer 1 (the data)** — real
-intraday price bars plus the trade log; **Layer 2 (the strategy)** —
-structured rules the engine applies mechanically; **Layer 3 (the engine)** —
-the deterministic behavioral audit and rule replay; **Layer 4 (the
-dashboard)** — one dark terminal-style page fed by `dash_data.json`.
+A trade auditor in five layers: **1 data** (real intraday bars + the trade
+log), **2 strategy** (structured rules, three ways to set them), **3 engine**
+(deterministic behavioral audit + conservative rule replay), **4 dashboard**
+(one dark terminal-style page fed by `dash_data.json`), **5 app** (Flask,
+one command, fully functional with zero API keys).
+
+```bash
+pip install -r requirements.txt
+python run.py        # starts on port 5050, opens the setup wizard
+```
 
 ## Layer 1 modules
 
@@ -37,10 +42,20 @@ dashboard)** — one dark terminal-style page fed by `dash_data.json`.
 | `build_dashboard.py` | Runs the Layer-3 engine and computes `dash_data.json` — verdict, stepper state, six KPI tiles with sparkline series, quant stats (each with its one-line meaning + a plain-english 'Read:' sentence), per-trade cards (side, size, R multiple, observed style, your exit vs the rule exit, flags), per-day candle data with real-1m detection, style read (declared vs observed + family table + axis splits), equity/luck curves, ranked dollar leaks, P&L by hour, and the discipline cost with the nine replay assumptions. Then bakes that JSON into `dashboard.html` so the page opens straight from disk. `python build_dashboard.py` after `fetch_and_gen.py`. |
 | `dashboard_template.html` | The page itself: JetBrains Mono on near-black, cyan = deterministic, purple = AI, zero external JS. Top to bottom: verdict banner, 1-2-3 stepper, COACH'S READ panel (empty until the coach button; renders returned markdown, tagged AI COACHING), KPI row, quant grid; then the deep dive — trade replay (real candles + close line + soft fill, prev/next day, adaptive 1m/5m/15m toggle where 1m only lights up on days with real 1-minute data, entry ▲ / your exit ● / rule exit ◆ markers, click for the trade modal), the constellation (every trade as a bubble: x time, y P&L, radius size, amber ring = oversized; hover card, click jumps the replay), style panel, equity vs without-top-3, ranked leaks, P&L by hour, and discipline cost with the assumptions printed. |
 
-## Quick start
+## Layer 5 modules
+
+| File | What it does |
+| --- | --- |
+| `run.py` | `python run.py` — checks deps, starts Flask on **port 5050**, opens the browser at the wizard, prints the URL; when a run finishes the headline numbers print to the terminal so the whole flow is screen-recordable. |
+| `app.py` + `setup.html` | The 3-step wizard (same purple/cyan code as the dashboard). **Step 1 DATA**: sample (runs `fetch_and_gen` fresh from live Yahoo) or upload a NinjaTrader CSV — validated via `trades_io` with clear errors; on upload, bars are fetched for exactly the symbols/dates in the file, un-fetchable trade sessions are listed and the flow continues (the behavioral audit still covers 100% of trades). **Step 2 STRATEGY**: presets, plain-english + editable review (AI, purple), or manual — plus the named-strategy library and the live R:R/breakeven readout. **Step 3 RUN**: engine → `build_dashboard` → `dash_data.json` → redirect to `/dashboard`. Endpoints: `POST /translate`, `POST /run`, `POST /coach`, `GET /dashboard` (+ small helpers for presets/readout/library). |
+| `coaching_layer.py` | `POST /coach`: distills the findings to a few KB of JSON — headline stats, luck numbers, ranked leaks, discipline aggregate, the five worst rule-deviation trades, style match, a sample-size note, and the trader's free-text playbook — **never the price bars** — and sends it through Layer 2's provider client with a blunt-coach system prompt (every claim must cite a number; no invented numbers; admits it can't verify ICT-style discretionary setups from this data; ends with a one-line `VERDICT:`). The report prints to the terminal and lands in the dashboard's Coach's Read panel. |
+
+**No-key mode**: every deterministic feature runs fully; the coach button just
+says "set a key to enable coaching", and the plain-english path greys out.
+
+## Standalone data generation
 
 ```bash
-pip install -r requirements.txt
 python fetch_and_gen.py            # default: SPY QQQ NVDA TSLA
 python fetch_and_gen.py SPY QQQ    # or your own symbols
 ```
@@ -55,6 +70,7 @@ python tests/test_layer1.py
 python tests/test_layer2.py
 python tests/test_layer3.py
 python tests/test_layer4.py
+python tests/test_layer5.py
 ```
 
 Layer 1: 34 offline checks against synthetic tapes shaped exactly like the
@@ -68,4 +84,6 @@ identities on a hand-made ledger, every fill mechanic verified against
 hand-computed prices (gap fills, stop-before-target, breakeven arming,
 trailing stops, slippage to the tick), eligibility, and the full
 audit + replay pipeline on the synthetic tape. Layer 4: 69 offline checks
-on the dash_data contract and the rendered page.
+on the dash_data contract and the rendered page. Layer 5: 38 offline checks
+driving the whole wizard flow through the Flask test client with Yahoo and
+the AI client stubbed.

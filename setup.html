@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trade Auditor — Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0e12; --panel:#10151b; --panel2:#151b23; --line:#1e2733;
+  --text:#c9d5e1; --dim:#64748b; --cyan:#22d3ee; --purple:#a78bfa;
+  --green:#34d399; --red:#f87171; --amber:#fbbf24;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);
+  font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:13px;line-height:1.5;max-width:1000px;margin:0 auto;padding:28px 24px 90px}
+h1{font-size:15px;letter-spacing:.22em;color:var(--cyan);margin-bottom:20px}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:18px 20px;margin-bottom:20px}
+.step h2{font-size:12px;letter-spacing:.16em;margin-bottom:12px}
+.step h2 .num{font-size:18px;margin-right:8px}
+.cyanc{color:var(--cyan)} .purplec{color:var(--purple)}
+.pos{color:var(--green)} .neg{color:var(--red)} .dim{color:var(--dim)} .amber{color:var(--amber)}
+.tag{font-size:9px;letter-spacing:.14em;padding:2px 7px;border-radius:4px;border:1px solid;margin-left:8px;vertical-align:2px}
+.tag.cyan{color:var(--cyan);border-color:var(--cyan)}
+.tag.purple{color:var(--purple);border-color:var(--purple)}
+button{font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);
+  border-radius:6px;padding:7px 14px;cursor:pointer}
+button:hover{border-color:var(--cyan)}
+button.big{padding:10px 22px;font-weight:700;letter-spacing:.08em}
+button.cy{border-color:var(--cyan);color:var(--cyan)}
+button.ai{border-color:var(--purple);color:var(--purple)}
+button:disabled{opacity:.35;cursor:not-allowed}
+input,select,textarea{font:inherit;background:var(--panel2);color:var(--text);
+  border:1px solid var(--line);border-radius:6px;padding:6px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
+label{font-size:10px;letter-spacing:.12em;color:var(--dim);display:block;margin-bottom:3px}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cols4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.status{margin-top:12px;font-size:12px;white-space:pre-wrap}
+.tabbtns{display:flex;gap:8px;margin-bottom:14px}
+.tabbtns .on{border-color:var(--cyan);color:var(--cyan)}
+.tabbtns .on.ai{border-color:var(--purple);color:var(--purple)}
+.tab{display:none}.tab.on{display:block}
+#preset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.preset{background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+  padding:10px 12px;cursor:pointer}
+.preset:hover{border-color:var(--cyan)}
+.preset b{color:var(--cyan);font-size:12px}
+.preset div{font-size:10px;color:var(--dim);margin-top:2px}
+#readout{border:1px solid var(--cyan);border-radius:6px;padding:10px 14px;margin-top:16px;
+  color:var(--cyan);font-size:12px}
+.librow{display:flex;gap:8px;margin-top:14px;align-items:center}
+.librow input,.librow select{width:220px}
+hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+.uplerr{color:var(--red)} .warn{color:var(--amber)}
+</style>
+</head>
+<body>
+<h1>TRADE AUDITOR — SETUP</h1>
+
+<div class="step">
+  <h2 class="cyanc"><span class="num">1</span>DATA <span class="tag cyan">DETERMINISTIC</span></h2>
+  <div class="cols2">
+    <div>
+      <b>Sample data</b>
+      <p class="dim" style="margin:6px 0 10px">Fetch real intraday bars from Yahoo and generate a
+      believable winning day-trader on top of them (every price is a real bar's open/close).</p>
+      <button class="cy" id="btn-sample">▶ FETCH SAMPLE (LIVE YAHOO)</button>
+    </div>
+    <div>
+      <b>Upload NinjaTrader CSV</b>
+      <p class="dim" style="margin:6px 0 10px">Your own export. Bars are fetched for exactly the
+      symbols and dates in the file; sessions Yahoo can't serve are listed and skipped.</p>
+      <input type="file" id="upl" accept=".csv" style="margin-bottom:8px">
+      <button class="cy" id="btn-upload">▶ UPLOAD &amp; VALIDATE</button>
+    </div>
+  </div>
+  <div class="status" id="data-status"></div>
+</div>
+
+<div class="step">
+  <h2 class="cyanc"><span class="num">2</span>STRATEGY
+    <span class="tag cyan">PRESET / MANUAL</span><span class="tag purple">PLAIN ENGLISH = AI</span></h2>
+  <div class="tabbtns">
+    <button data-tab="preset" class="on">PRESETS</button>
+    <button data-tab="ai" class="ai">PLAIN ENGLISH (AI)</button>
+    <button data-tab="manual">MANUAL</button>
+  </div>
+
+  <div class="tab on" id="tab-preset">
+    <div id="preset-grid"></div>
+  </div>
+
+  <div class="tab" id="tab-ai">
+    <div class="cols2">
+      <div>
+        <label>TRADING FAMILY</label>
+        <select id="ai-family"></select>
+        <label style="margin-top:10px">HOW YOU TRADE, IN YOUR OWN WORDS</label>
+        <textarea id="ai-playbook" rows="6" placeholder="e.g. I buy the first pullback after a strong open, stop under the low, out by lunch…"></textarea>
+        <button class="ai" id="btn-translate" style="margin-top:10px">▶ TRANSLATE TO RULES</button>
+        <span class="dim" id="ai-note" style="margin-left:8px;font-size:11px"></span>
+      </div>
+      <div class="dim" style="font-size:12px">
+        The model returns strict JSON matching the rules schema. Every field lands in the
+        editable form below — <b>nothing runs until you approve by pressing RUN AUDIT.</b>
+        This step happens once per strategy; your free-text playbook is stored for the coach.
+      </div>
+    </div>
+  </div>
+
+  <div class="tab" id="tab-manual">
+    <p class="dim">Set every field yourself in the form below.</p>
+  </div>
+
+  <hr>
+  <div class="cols4">
+    <div><label>DIRECTION</label>
+      <select id="f-direction"><option value="long_only">long_only</option>
+      <option value="short_only">short_only</option><option value="both">both</option></select></div>
+    <div><label>STOP %</label><input id="f-stop" type="number" step="0.05" value="0.5"></div>
+    <div><label>TARGET % (empty = none)</label><input id="f-target" type="number" step="0.05" value="1.0"></div>
+    <div><label>EXIT STYLE</label>
+      <select id="f-exit"><option>fixed</option><option>breakeven</option>
+      <option>trailing</option><option>time</option></select></div>
+    <div><label>SESSION START (ET)</label><input id="f-start" value="09:30"></div>
+    <div><label>SESSION END (ET)</label><input id="f-end" value="16:00"></div>
+    <div><label>MAX SIZE</label><input id="f-size" type="number" value="500"></div>
+    <div><label>SLIPPAGE (BPS)</label><input id="f-slip" type="number" value="2"></div>
+  </div>
+  <div id="readout">…</div>
+  <div class="librow">
+    <label style="margin:0">LIBRARY</label>
+    <input id="lib-name" placeholder="strategy name">
+    <button id="btn-save">SAVE</button>
+    <select id="lib-list"></select>
+    <button id="btn-load">LOAD</button>
+    <span class="dim" id="lib-note" style="font-size:11px"></span>
+  </div>
+</div>
+
+<div class="step">
+  <h2 class="cyanc"><span class="num">3</span>RUN <span class="tag cyan">DETERMINISTIC ENGINE</span></h2>
+  <p class="dim" style="margin-bottom:12px">Locks the rules, replays every trade on the real bars,
+  builds the dashboard, and prints the headline numbers to the terminal.</p>
+  <button class="big cy" id="btn-run">▶ RUN AUDIT</button>
+  <div class="status" id="run-status"></div>
+</div>
+
+<script>
+const el = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let aiMeta = null;   // {family, playbook} when the current form came from the AI path
+
+async function post(url, body, isForm){
+  const opts = isForm ? {method:"POST", body} :
+    {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body||{})};
+  const r = await fetch(url, opts);
+  let j; try{ j = await r.json(); }catch(e){ j = {ok:false, error:"server error "+r.status}; }
+  if(!r.ok && j.ok === undefined) j = {ok:false, error:j.error||("server error "+r.status)};
+  return j;
+}
+
+/* ---------- step 1: data ---------- */
+function dataSummary(j){
+  let s = `✔ ${j.n_trades} trades · ${j.symbols.join(", ")} · ${j.sessions} sessions\n${j.note}`;
+  if(j.warnings.length) s += "\n" + j.warnings.map(w=>"⚠ "+w).join("\n");
+  if(j.missing.length) s += "\nno bars for: " + j.missing.join(", ");
+  return s;
+}
+el("btn-sample").onclick = async () => {
+  el("data-status").innerHTML = "<span class='dim'>fetching real bars from Yahoo + generating the sample trader…</span>";
+  const j = await post("/api/data/sample");
+  el("data-status").innerHTML = j.ok ? `<span class="pos">${esc(dataSummary(j))}</span>`
+                                     : `<span class="uplerr">✘ ${esc(j.error)}</span>`;
+};
+el("btn-upload").onclick = async () => {
+  const f = el("upl").files[0];
+  if(!f){ el("data-status").innerHTML = "<span class='uplerr'>choose a CSV first</span>"; return; }
+  const fd = new FormData(); fd.append("file", f);
+  el("data-status").innerHTML = "<span class='dim'>validating + fetching bars for your symbols/dates…</span>";
+  const j = await post("/api/data/upload", fd, true);
+  el("data-status").innerHTML = j.ok ? `<span class="pos">${esc(dataSummary(j))}</span>`
+                                     : `<span class="uplerr">✘ ${esc(j.error)}</span>`;
+};
+
+/* ---------- step 2: strategy ---------- */
+document.querySelectorAll(".tabbtns button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabbtns button").forEach(x=>x.classList.remove("on"));
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); el("tab-"+b.dataset.tab).classList.add("on");
+});
+
+const FIELDS = {direction:"f-direction", stop_pct:"f-stop", target_pct:"f-target",
+  session_start:"f-start", session_end:"f-end", max_size:"f-size",
+  exit_style:"f-exit", slippage_bps:"f-slip"};
+function readForm(){
+  const t = el("f-target").value.trim();
+  return {direction: el("f-direction").value, stop_pct: +el("f-stop").value,
+    target_pct: t === "" ? null : +t, session_start: el("f-start").value,
+    session_end: el("f-end").value, max_size: +el("f-size").value,
+    exit_style: el("f-exit").value, slippage_bps: +el("f-slip").value};
+}
+function fillForm(rules){
+  for(const [k, id] of Object.entries(FIELDS))
+    el(id).value = rules[k] === null ? "" : rules[k];
+  refreshReadout();
+}
+let roTimer = null;
+async function refreshReadout(){
+  const j = await post("/api/readout", readForm());
+  el("readout").textContent = j.text || "…";
+}
+Object.values(FIELDS).forEach(id => el(id).addEventListener("input", () => {
+  clearTimeout(roTimer); roTimer = setTimeout(refreshReadout, 250);
+}));
+
+(async () => {
+  const presets = await (await fetch("/api/presets")).json();
+  el("preset-grid").innerHTML = Object.entries(presets).map(([k,p]) =>
+    `<div class="preset" data-k="${k}"><b>${esc(p.label)}</b><div>${esc(p.blurb)}</div></div>`).join("");
+  document.querySelectorAll(".preset").forEach(d => d.onclick = () => {
+    aiMeta = null; fillForm(presets[d.dataset.k].rules);
+  });
+  const fams = ["Momentum","Mean reversion","Breakout","Trend following","Pullback",
+    "Scalping","Swing","Day trading","Opening range","VWAP trading","ICT / price action",
+    "Order flow","Gap trading","Fade / contrarian","News / event"];
+  el("ai-family").innerHTML = fams.map(f=>`<option>${f}</option>`).join("");
+  refreshReadout(); refreshLibrary();
+})();
+
+el("btn-translate").onclick = async () => {
+  el("ai-note").textContent = "translating…";
+  const family = el("ai-family").value, playbook = el("ai-playbook").value;
+  const j = await post("/translate", {family, playbook});
+  if(!j.ok){ el("ai-note").textContent = j.error; return; }
+  aiMeta = {family, playbook};
+  fillForm(j.rules);
+  el("ai-note").textContent = "✔ drafted — review/edit the fields below, then RUN to approve"
+    + (j.warnings.length ? " · " + j.warnings.join("; ") : "");
+};
+
+async function refreshLibrary(){
+  const j = await (await fetch("/api/strategies")).json();
+  el("lib-list").innerHTML = j.strategies.map(s=>`<option>${esc(s)}</option>`).join("");
+}
+el("btn-save").onclick = async () => {
+  const j = await post("/api/strategies/save", {name: el("lib-name").value, rules: readForm()});
+  el("lib-note").textContent = j.ok ? "✔ saved" : j.error;
+  if(j.ok) refreshLibrary();
+};
+el("btn-load").onclick = async () => {
+  const j = await post("/api/strategies/load", {name: el("lib-list").value});
+  if(j.ok){ aiMeta = null; fillForm(j.rules); el("lib-note").textContent = "✔ loaded"; }
+  else el("lib-note").textContent = j.error;
+};
+
+/* ---------- step 3: run ---------- */
+el("btn-run").onclick = async () => {
+  el("run-status").innerHTML = "<span class='dim'>replaying every trade on the real bars…</span>";
+  const body = {rules: readForm()};
+  if(aiMeta){ body.family = aiMeta.family; body.playbook = aiMeta.playbook; }
+  const j = await post("/run", body);
+  if(!j.ok){ el("run-status").innerHTML = `<span class="uplerr">✘ ${esc(j.error)}</span>`; return; }
+  el("run-status").innerHTML =
+    `<span class="pos">✔ ${esc(j.headline.verdict)}</span>\n`+
+    `<span class="dim">opening the dashboard…</span>`;
+  setTimeout(() => location.href = j.redirect, 1200);
+};
+</script>
+</body>
+</html>

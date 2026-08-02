@@ -263,13 +263,15 @@ el("coach-btn").onclick = async () => {
   el("coach-note").textContent = "asking the coach…";
   try{
     const resp = await fetch("/api/coach",{method:"POST"});
-    if(!resp.ok) throw new Error(await resp.text());
-    const j = await resp.json();
+    let j = null; try{ j = await resp.json(); }catch(_){}
+    if(!resp.ok || !j || !j.markdown) throw new Error(j && j.error ? j.error : "coach unavailable");
     renderCoach(j.markdown); el("coach-note").textContent = "";
   }catch(e){
-    el("coach-note").textContent = D.coach.available
-      ? "coach endpoint not running — start the Layer-5 server (or call window.renderCoach(markdown))"
-      : "no AI key configured — the deterministic audit above is complete without it";
+    el("coach-note").textContent = String(e.message||e).includes("key")
+      ? "set a key to enable coaching — the deterministic audit above is complete without it"
+      : (window.location.protocol === "file:"
+        ? "open this page through the Layer-5 server (python run.py) to enable the coach"
+        : String(e.message||e));
   }
 };
 
