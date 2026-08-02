@@ -16,10 +16,10 @@ warning string — a data gap never crashes the fetch.
 from __future__ import annotations
 
 import datetime as dt
-import re
-
 import pandas as pd
 import yfinance as yf
+
+import instruments
 
 EASTERN = "US/Eastern"
 SESSION_START = dt.time(9, 30)
@@ -31,21 +31,15 @@ ONE_MIN_DAYS = 7
 
 BARS_COLUMNS = ["instrument", "datetime", "open", "high", "low", "close", "volume"]
 
-_FUTURES_RE = re.compile(r"^([A-Z]{1,4})\s+\d{2}-\d{2}$")
-
 
 def to_yahoo_symbol(instrument: str) -> str:
     """Map a trade-log instrument name to a Yahoo ticker.
 
-    NinjaTrader futures instruments look like "ES 03-26" / "MES 06-25";
-    Yahoo quotes the continuous contract as "ES=F". Anything else is
-    passed through unchanged.
+    Futures in any common form — NinjaTrader "ES 03-26", month-code
+    "MNQZ5", CQG/TopstepX "F.US.EP" — map to Yahoo's continuous contract
+    ("ES=F", "MNQ=F", ...). Anything else passes through unchanged.
     """
-    instrument = str(instrument).strip()
-    m = _FUTURES_RE.match(instrument)
-    if m:
-        return f"{m.group(1)}=F"
-    return instrument
+    return instruments.yahoo_symbol(instrument)
 
 
 def fetch_bars(symbols, start=None, end=None, save_path="bars.csv"):

@@ -53,6 +53,28 @@ python run.py        # starts on port 5050, opens the setup wizard
 **No-key mode**: every deterministic feature runs fully; the coach button just
 says "set a key to enable coaching", and the plain-english path greys out.
 
+## Futures & prop firms (TopstepX)
+
+Works with futures accounts and prop-firm evaluations out of the box:
+
+- **TopstepX / ProjectX CSV exports** load directly — headers like
+  `ContractName`, `EnteredAt`/`ExitedAt`, `Size`, `Type`, `PnL`, `Fees` are
+  mapped onto the schema automatically, UTC timestamps are converted to
+  Eastern, and `Buy`/`Sell` becomes `Long`/`Short`. NinjaTrader exports load
+  as before.
+- **Contract point values** (`instruments.py`): ES $50/pt, MES $5, NQ $20,
+  MNQ $2, CL, GC, and the rest of the common CME/CBOT/NYMEX/COMEX contracts —
+  so the rule replay, R multiples, and expectancy-in-R are exact dollars, not
+  points. Any contract naming works ("MES 06-25", "MNQZ5", "F.US.EP",
+  "CON.F.US.MES.H25") and maps to Yahoo's continuous contract for bars.
+  Equities keep a point value of 1.0 — nothing changes for stocks.
+- **Points-based stops**: set `price_unit` to `points` in the rules (wizard
+  dropdown) and stop/target are futures-style point distances instead of
+  percent of entry.
+- **Daily loss limit** (`daily_loss_limit`, dollars): once the day's closed
+  P&L is down that much, further entries are flagged in the audit and marked
+  "outside your plan, not taken" in the replay — the classic combine-killer.
+
 ## Standalone data generation
 
 ```bash
